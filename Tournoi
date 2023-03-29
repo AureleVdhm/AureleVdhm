@@ -1,0 +1,183 @@
+from random import *
+
+def bisounours(i,moi,autre1,autre2,memoire):
+    return 1
+
+def traitre(i,moi,autre1,autre2,memoire):
+    return 0
+
+def sympa_irl(i,moi,autre1,autre2,memoire):
+    if i%3 == 2:
+        return 0
+    else:
+        return 1
+
+def partie(N,f1,f2,f3,mem1,mem2,mem3):
+    L1,L2,L3 = [],[],[]
+    for k in range(N):
+        S1,S2,S3 = L1.copy(),L2.copy(),L3.copy()
+        S1 += [f1(k,L1,L2,L3,mem1)]
+        S2 += [f2(k,L2,L1,L3,mem2)]
+        S3 += [f3(k,L3,L2,L1,mem3)]
+        L1,L2,L3 = S1,S2,S3
+    return L1,L2,L3
+
+def score(L1,L2,L3):
+    score1,score2,score3 = 0,0,0
+    assert len(L1) == len(L2) and len(L2) == len(L3)
+    for k in range(len(L1)):
+        if L1[k] == 1 :
+            if L2[k] == 1 :
+                if L3[k] == 1 :
+                    score1 += 6
+                    score2 += 6
+                    score3 += 6
+                else :
+                    score1 += 4
+                    score2 += 4
+                    score3 += 9
+            else :
+                if L3[k] == 1 :
+                    score1 += 4
+                    score2 += 9
+                    score3 += 4
+                else :
+                    score2 += 5
+                    score3 += 5
+        else :
+            if L2[k] == 1 :
+                if L3[k] == 0 :
+                    score1 += 9
+                    score2 += 4
+                    score3 += 4
+                else :
+                    score1 += 5
+                    score3 += 5
+            else :
+                if L3[k] == 1 :
+                    score1 += 5
+                    score2 += 5
+                else :
+                    score1 += 2
+                    score2 += 2
+                    score3 += 2
+    return score1,score2,score3
+
+def rancunier(i,moi,autre1,autre2,memoire):
+    for k in range(i-1):
+        if autre1[k] == 0 and autre2[k] == 0 :
+            return 0
+    return 1
+
+def tres_rancunier(i,moi,autre1,autre2,memoire):
+    for k in range(i-1):
+        if autre1[k] == 0 or autre2[k] == 0 :
+            return 0
+    return 1
+
+def miroir_gentil(i,moi,autre1,autre2,memoire):
+    if i == 0 :
+        return 1
+    else :
+        return (autre1[i-1] + autre2[i-1])%2
+
+def miroir_mechant(i,moi,autre1,autre2,memoire):
+    if i == 0 :
+        return 0
+    else :
+        return (autre1[i-1] + autre2[i-1])//2
+
+def majorite(i,moi,autre1,autre2,memoire):
+    morale = 0
+    for k in range(i-1):
+        if autre2[k] == 1 :
+            morale += 1
+        else :
+            morale += -1
+        if autre1[k] == 1 :
+            morale += 1
+        else :
+            morale += -1
+    if morale < 0 :
+        return 0
+    else :
+        return 1
+
+def mastermind(i,moi,autre1,autre2,memoire):
+    if i == 0 :
+        return 0
+    if i == 1 or i == 2 :
+        return 1
+    else :
+        return (autre1[i-1] + autre2[i-1])%2
+
+def indecis(p):
+    def f(i,moi,autre1,autre2,memoire):
+        x = random.random()
+        if p < x :
+            return 1
+        else:
+            return 0
+    return f
+
+def tournoi(t,mem): #mem le tableau des mémoires, ordonné comme t
+    N = randint(500,1000)
+    scores = [0]*len(t)
+    for j in range(len(t)):
+        for k in range(j):
+            for l in range(k):
+                L1,L2,L3 = partie(N,t[j],t[k],t[l],mem[j],mem[k],mem[l])
+                score1,score2,score3 = score(L1,L2,L3)
+                scores[j] += score1
+                scores[k] += score2
+                scores[l] += score3
+    return(scores)
+
+def vdhm(i,moi,autre1,autre2,memoire):
+    if i == 0:
+        return 0
+    if i == 1:
+        return 1
+    if i == 2:
+        return 0
+
+    if memoire == []:
+        memoire = [[0,0],[0,1]]
+
+memoire[0][0] *= memoire[1][0]
+memoire[0][1] *= memoire[1][1]
+a = moi[i-1]
+b = autre1[i-1]
+c = autre2[i-1]
+if a == 1:
+    memoire[1][1] += 1
+    if b == 1:
+        if c == 1:
+            memoire[0][1] += 6
+        else:
+            memoire[0][1] += 4
+    else:
+        if c == 1:
+            memoire[0][1] += 4
+        # else:
+           # print ("it's treason then")
+else :
+    memoire[1][0] += 1
+    if b == 1:
+        if c == 1:
+            memoire[0][0] += 9
+        else:
+            memoire[0][0] += 5
+    else:
+        if c == 1:
+           memoire[0][0] += 5
+        else:
+           memoire[0][0] += 2
+
+if not memoire[1][0] == 0:
+    memoire[0][0] /= memoire[1][0]
+memoire[0][1] /= memoire[1][1]
+if memoire[0][0] > 1.5 * memoire[0][1]:
+    return 0
+else:
+    return 1
