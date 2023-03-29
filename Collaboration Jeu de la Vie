@@ -1,0 +1,564 @@
+from tkinter import *
+import time
+import random
+import numpy as np
+from math import *
+import msvcrt
+
+# 0. représente la case par défaut,
+# 1. une case de nourriture, ou une source de nourriture
+# 2. un être sans capacité particulière, ne percevant que les cases qui lui sont adjacentes,
+# 4. un être doté d'odorat, ie capable de repérer la case la plus proche et de s'en approcher
+# 6. un être doté de mémoire et d'odorat
+
+# Leur "score" est stocké dans un tableau d'entiers persistant de la taille du monde
+
+# variables persistantes
+
+taille_cellule = 15
+nbr = 25
+duree=50
+taux_nourriture=0.05
+taux_simple=0.01
+taux_sentant=0.01
+taux_memoire=0.01
+
+taux_changement_memoire=0.05
+
+temps_recuperation_nourriture=1
+
+taux_changement_nourriture=0.00
+
+nourriture_base=2.
+
+perte_nourriture=0.25
+
+temps_lassitude=3
+
+delta_t=0. # temps d'attente entre chaque image en secondes 
+
+
+def grille(n):
+    xi = yi = 0
+    longueur_colonne = n * taille_cellule
+    for i in range(n):
+        xi += taille_cellule
+        scene.create_line(xi, 0, xi, longueur_colonne, fill = "white")
+
+    longueur_ligne = n* taille_cellule
+    for i in range(n):
+        yi += taille_cellule
+        scene.create_line(0, yi, longueur_ligne, yi, fill = "white")
+    return None
+
+# monde(n:entier) crée un monde de taille n
+
+def monde(n):
+    m=[]
+    for k in range(n):
+        m+=[[0.]*n]
+    return(np.array(m))
+
+# nourriture(m:monde) renvoie un tableau de même taille que le monde, et présentant des 1. sur taux_nourriture*100 % de ses cases
+
+def nourriture(m):
+    n=len(m)
+    terrain=monde(n)
+    for i in range(n):
+        for j in range(n):
+            if(taux_nourriture > random.random()):
+                terrain[i][j]=1.
+                m[i][j]=1
+
+    return(terrain)
+
+def stock_nourriture(m):
+    n=len(m)
+    retour=monde(n)
+    for i in range(n):
+        for j in range(n):
+            if(m[i][j]>1.):
+                retour[i][j]=nourriture_base
+    return retour
+
+def update_stock_nourriture(m, stock):
+    n=len(stock)
+    for i in range(n):
+        for j in range(n):
+            if((m[i][j]>1.) and stock[i][j]<=0.):
+                m[i][j]=0.
+            elif((m[i][j]>1.) and stock[i][j]>0.):
+                stock[i][j]-=perte_nourriture
+    return None
+
+# printemps(m:monde, jardin: tableau de 0. et de 1.) modifie les emplacements de nourriture dans le monde
+
+def printemps(m,jardin):
+    #print(jardin)
+    #print("\n")
+    n=len(m)
+    for i in range(n):
+        for j in range(n):
+            #regardons si l'herbe a été mangée
+            if(m[i][j]==0. and jardin[i][j]==1.):
+                continuer=True
+                if(taux_changement_nourriture>0.):
+                    chance=random.random()
+                    if(chance<taux_changement_nourriture):
+                        #trouvons un nouvel emplacement
+                        continuer=False
+                        trouve=False
+                        ni=i
+                        nj=j
+                        while not trouve:
+                            ni=int(random.random()*n)
+                            nj=int(random.random()*n)
+                            if m[ni][nj]==0.:
+                                trouve=True
+
+                        jardin[i][j]=0.
+                        jardin[ni][nj]=3.
+                        m[i][j]=0.
+                        m[ni][nj]=0
+                if continuer:
+                    jardin[i][j]=3.
+            if(jardin[i][j]>2. and jardin[i][j]<=3.):
+                jardin[i][j]=jardin[i][j]-(1/temps_recuperation_nourriture)
+            elif(jardin[i][j]>1 and jardin[i][j]<=2. and m[i][j]==0):
+                jardin[i][j]=1.
+                m[i][j]=1
+    return(None)
+
+# vivants(m: monde) remplace taux_simple*100 % (respectivement taux sentant*100 % ou taux_memoire*100 %) des 0. du monde en 2. (resp en 4. ou 6.).
+
+def vivants(m):
+    n=len(m)
+    for i in range(n):
+        for j in range(n):
+            if not int(m[i][j])==1 :
+                x = random.random()
+                if x < taux_simple :
+                    m[i][j]= 2.
+                elif x < taux_simple + taux_sentant:
+                    m[i][j]= 4.
+                elif x < taux_simple + taux_sentant + taux_memoire:
+                    m[i][j]= 6.
+                else:
+                    m[i][j]= 0.
+    return None
+
+
+# simple(m: monde) définit le déplacement d'un 2.
+
+
+def simple(m, stock):
+    n=len(m)
+    c=0
+    for i in range(n):
+        for j in range(n):
+            if int(m[i][j])==2 :
+                # dans le cas où il y a une case nourriture dans les cases adjacentes
+                if(j>0 and m[i][j-1]==1. and c==0):
+                    m[i][j-1]= 1.+ m[i][j]
+                    m[i][j]= 0.
+
+                    stock[i][j-1]=stock[i][j]+1
+                    stock[i][j]=0
+                    c+=1
+                if(i>0 and m[i-1][j]==1. and c==0):
+                    m[i-1][j]= 1.+ m[i][j]
+                    m[i][j]= 0.
+
+                    stock[i-1][j]=stock[i][j]+1
+                    stock[i][j]=0
+                    c+=1
+                if(j< n-1 and m[i][j+1]==1. and c==0):
+                    m[i][j+1]= 1.+ m[i][j]
+                    m[i][j]= 0.
+                    
+                    stock[i][j+1]=stock[i][j]+1
+                    stock[i][j]=0
+                    c+=1
+                if(i< n-1 and m[i+1][j]==1. and c==0):
+                    m[i+1][j]= 1.+ m[i][j]
+                    m[i][j]= 0.
+
+                    stock[i+1][j]=stock[i][j]+1
+                    stock[i][j]=0
+                    c+=1
+                if(j>0 and i>0 and m[i-1][j-1]==1 and c==0):
+                    m[i-1][j-1]= 1.+ m[i][j]
+                    m[i][j]= 0.
+
+                    stock[i-1][j-1]=stock[i][j]+1
+                    stock[i][j]=0
+                    c+=1
+                if(j<n-1 and i>0 and m[i-1][j+1]==1 and c==0):
+                    m[i-1][j+1]= 1.+ m[i][j]
+                    m[i][j]= 0.
+
+                    stock[i-1][j+1]=stock[i][j]+1
+                    stock[i][j]=0
+                    c+=1
+                if(j>0 and i<n-1 and m[i+1][j-1]==1 and c==0):
+                    m[i+1][j-1]= 1.+ m[i][j]
+                    m[i][j]= 0.
+
+                    stock[i+1][j-1]=stock[i][j]+1
+                    stock[i][j]=0
+                    c+=1
+                if(j<n-1 and i<n-1 and m[i+1][j+1]==1 and c==0):
+                    m[i+1][j+1]= 1.+ m[i][j]
+                    m[i][j]= 0.
+
+                    stock[i+1][j+1]=stock[i][j]+1
+                    stock[i][j]=0
+                    c+=1
+                # S'il n'y a pas de nourriture autour de lui il prend une decision aléatoire
+                else:
+                    aleatoire=random.randint(1,8)
+                    if(aleatoire==1 ):
+                        if(i>0 and m[i-1][j]==0. ):
+                            m[i-1][j]= 1.+ m[i][j]
+                            m[i][j]= 0.
+
+                            stock[i-1][j]=stock[i][j]
+                            stock[i][j]=0
+                    if(aleatoire==2):
+                        if(i<n-1 and m[i+1][j]==0.):
+                            m[i+1][j]= 1.+ m[i][j]
+                            m[i][j]= 0.
+                            
+                            stock[i+1][j]=stock[i][j]
+                            stock[i][j]=0
+                    if(aleatoire==3 ):
+                        if(j>0 and m[i][j-1]==0.):
+                            m[i][j-1]= 1.+ m[i][j]
+                            m[i][j]= 0.
+
+                            stock[i][j-1]=stock[i][j]
+                            stock[i][j]=0
+                    if(aleatoire==4):
+                        if(j<n-1 and m[i][j+1]==0.):
+                            m[i][j+1]= 1.+ m[i][j]
+                            m[i][j]= 0.
+                            
+                            stock[i][j+1]=stock[i][j]
+                            stock[i][j]=0
+                    if(aleatoire==5):
+                        if(i>0 and j<n-1 and m[i-1][j+1]==0.):
+                            m[i-1][j+1]= 1.+ m[i][j]
+                            m[i][j]= 0.
+
+                            stock[i-1][j+1]=stock[i][j]
+                            stock[i][j]=0
+                    if(aleatoire==6):
+                        if(i<n-1 and j<n-1 and m[i+1][j+1]==0.):
+                            m[i+1][j+1]= 1.+ m[i][j]
+                            m[i][j]= 0.
+
+                            stock[i+1][j+1]=stock[i][j]
+                            stock[i][j]=0
+                    if(aleatoire==7):
+                        if(i>0 and j>0 and m[i-1][j-1]==0.):
+                            m[i-1][j-1]= 1.+ m[i][j]
+                            m[i][j]= 0.
+
+                            stock[i-1][j-1]=stock[i][j]
+                            stock[i][j]=0
+                    if(aleatoire==8 ):
+                        if(i<n-1 and j>0 and m[i+1][j-1]==0.):
+                            m[i+1][j-1]= 1.+ m[i][j]
+                            m[i][j]= 0.
+
+                            stock[i+1][j-1]=stock[i][j]
+                            stock[i][j]=0
+ 
+    for i in range(n):
+        for j in range(n):
+            if int(m[i][j])==3 :
+                m[i][j] -=1.
+    return None 
+
+# sentant(m: monde) définit le déplacement d'un 4.
+
+def sentant(m, stock, nombre_etre = 4, mem = []):
+    n=len(m)
+    for i in range(n):
+        for j in range(n):
+            if int(m[i][j])== nombre_etre :
+                #trouvons la nourriture la plus proche de l'être dans le tableau
+                I=i
+                J=j
+                a=1
+                stop=False
+                while(a<n):
+                    if stop:
+                        break
+                    for c in range(-a, a+1):
+                        if stop:
+                            break
+                        for b in range(-a, a+1):
+                            if stop:
+                                break
+                            if(i+c<n-1 and i+c>0 and j+b<n-1 and j+b>0 and int(m[i+c][j+b])==1):
+                                I=i+c
+                                J=j+b
+                                stop=True
+                    a+=1
+
+                # Calculons le déplacement optimal pour se rapprocher de cette valeur
+                i_dep=I-i
+                j_dep=J-j
+                
+                # le problème de division par zéro peut sûrement être résolue plus proprement
+                if(i_dep==0 and j_dep==0):
+                    pass
+                elif(i_dep==0):
+                    j_dep=j_dep/abs(j_dep)
+                elif(j_dep==0):
+                    i_dep=i_dep/abs(i_dep)
+                
+                elif(abs(i_dep)>=abs(j_dep)):
+                    var=abs(i_dep)
+                    i_dep=i_dep/var
+                    j_dep=j_dep/var
+                    if abs(j_dep)>0.5:
+                        j_dep=j_dep/abs(j_dep)
+                    else:
+                        j_dep=0
+                elif(abs(i_dep)<=abs(j_dep)):
+                    var=abs(j_dep)
+                    i_dep=i_dep/var
+                    j_dep=j_dep/var
+                    if abs(i_dep)>0.5:
+                        i_dep=i_dep/abs(i_dep)
+                    else:
+                        i_dep=0
+                i_dep=int(i_dep)
+                j_dep=int(j_dep)
+                #déplacement du personnage 
+                if int(m[i+i_dep][j+j_dep])==1:
+                    m[i+i_dep][j+j_dep]=1.+m[i][j]
+                    m[i][j]=0.
+
+                    stock[i+i_dep][j+j_dep]=stock[i][j]+1
+                    stock[i][j]=0
+                    
+                    if nombre_etre ==9 :
+                        ajout(s,i,j,i+i_dep,j+j_dep)
+                        mem[i+i_dep][j+j_dep]=mem[i][j]
+                        mem[i][j] = []
+                        
+                elif int(m[i+i_dep][j+j_dep])==0:
+                    m[i+i_dep][j+j_dep]=1.+m[i][j]
+                    m[i][j]=0.
+
+                    stock[i+i_dep][j+j_dep]=stock[i][j]
+                    stock[i][j]=0
+                    
+    for i in range(n):
+        for j in range(n):
+            if int(m[i][j])== nombre_etre +1 :
+                m[i][j] -=1.
+    return None 
+
+# creation_memoire(m: monde) renvoie une mémoire de la taille du monde
+
+def creation_memoire(m):
+    n=len(m)
+    mem=[]
+    for i in range(n):
+        mem.append([])
+        for j in range(n):
+            mem[i].append([])
+            
+    return mem
+
+# memoire(m:monde, s:memoire) implémente le mouvement d'un 6.
+
+def creation_memoire(m):
+    n=len(m)
+    mem=[[]]*n
+    mem=[mem[:]]*n
+    return mem
+
+
+def tri_decroissant(l):
+    if l==[]:
+        return(l)
+    else:
+        pivot=l[0][0]
+        t1=[]
+        t2=[]
+        for x in l[1:]:
+            y=x[0]
+            if y > pivot :
+                t1+=[x]
+            else:
+                t2+=[x]
+        return tri_decroissant(t1) +[l[0]] +tri_decroissant(t2)
+        
+
+def tri_memoire(s):
+    n=len(s)
+    for i in range(n):
+        for j in range(n):
+            s[i][j]= tri_decroissant(s[i][j])
+    return None
+    
+
+def trouver(s,i,j,l,c):
+    L=s[i][j]
+    for num0, num1, num2 in L:
+        if (num1, num2) == (l, c):
+            return True, L.index((num0, num1, num2))
+    return False, -1
+
+
+def ajout(s,i,j,l,c):
+    present, num = trouver(s,i,j,l,c)
+    if present :
+        u,v,w = s[i][j][num]
+        s[i][j][num] = u+1,v,w
+    else:
+        s[i][j].append((1,l,c))
+    return None
+
+
+def update_memoire(mem):
+    n=len(mem)
+    for i in range(n):
+        for j in range(n):
+            mem[i][j]= mem[i][j]+1
+
+
+def memoire(m,stock,s,attitude):
+    tri_memoire(s)
+    n = len(m)
+    for i in range(n):
+        for j in range(n):
+            if attitude[i][j] and m[i][j]==6 and s[i][j]!=[] : # attitude basée sur la mémoire
+                L=s[i][j]
+                if(L!=[]):
+                    x,y,z= L[0]
+                    i_dep = y-i
+                    j_dep = z-j
+                    if (i_dep ==0 and j_dep ==0) :
+                        pass
+                    elif (j_dep == 0):
+                        i_dep = i_dep / abs(i_dep)
+                    elif (i_dep == 0):
+                        j_dep = j_dep / abs(j_dep)
+                        
+                    elif(abs(i_dep)>=abs(j_dep)):
+                        var=abs(i_dep)
+                        i_dep=i_dep/var
+                        j_dep=j_dep/var
+                        if abs(j_dep)>0.5:
+                            j_dep=j_dep/abs(j_dep)
+                        else:
+                            j_dep=0
+                    elif(abs(i_dep)<=abs(j_dep)):
+                        var=abs(j_dep)
+                        i_dep=i_dep/var
+                        j_dep=j_dep/var
+                        if abs(i_dep)>0.5:
+                            i_dep=i_dep/abs(i_dep)
+                        else:
+                            i_dep=0
+                    i_dep=int(i_dep)
+                    j_dep=int(j_dep)
+                    # déplacement du personnage 
+                    if int(m[i+i_dep][j+j_dep])==1:
+                        m[i+i_dep][j+j_dep]=1.+m[i][j]
+                        m[i][j]=0.
+
+                        stock[i+i_dep][j+j_dep]=stock[i][j]+1
+                        stock[i][j]=0
+                        
+                        ajout(s,i,j,i+i_dep,j+j_dep)
+                        s[i+i_dep][j+j_dep]=s[i][j]
+                        s[i][j] = []
+                    elif int(m[i+i_dep][j+j_dep])==0:
+                        m[i+i_dep][j+j_dep]=1.+m[i][j]
+                        m[i][j]=0.
+
+                        stock[i+i_dep][j+j_dep]=stock[i][j]
+                        stock[i][j]=0
+                        
+                        s[i+i_dep][j+j_dep]=s[i][j]
+                        s[i][j] = []
+            elif(m[i][j]==6) : # attitude d'un sentant
+                m[i][j]= 8
+            if random.random() < taux_changement_memoire :
+                attitude[i][j] = not attitude[i][j]
+    sentant(m, stock, nombre_etre = 8, mem= s)
+    for i in range(n):
+        for j in range(n):
+            if m[i][j]== 7 or m[i][j]== 8 :
+                m[i][j] =6
+    return(m,stock)
+
+
+
+#gestion de l'affichage
+window = Tk()
+
+
+
+mainframe = Frame(window, height = 720 , width = 1000)
+mainframe.pack_propagate(0)
+mainframe.pack(pady = 20)
+
+cadre_scene = Frame(mainframe, borderwidth = 3, bg = 'black')
+
+cadre_scene.pack(side = TOP, pady= 10)
+
+scene = Canvas(cadre_scene, height = nbr * taille_cellule , width = nbr * taille_cellule , bd = 0, bg = 'black', cursor = "plus")
+scene.pack(side = LEFT)
+grille(nbr)
+
+#gestion du monde
+
+m=monde(nbr)
+jardin=nourriture(m)
+memoire_liste=creation_memoire(m)
+
+attitude=[]
+
+for k in range(len(m)):
+    attitude +=[[False]*(len(m))]
+
+
+
+vivants(m)
+
+vivant_stock=stock_nourriture(m)
+
+for k in range(duree):
+    simple(m, vivant_stock)
+    sentant(m, vivant_stock)
+    memoire(m,vivant_stock,memoire_liste,attitude)
+    printemps(m,jardin)
+
+    # update_memoire(memoire)
+    update_stock_nourriture(m, vivant_stock)
+    for y in range(nbr):
+        for x in range(nbr):
+            element = int(m[y][x])
+
+
+
+            couleur = {0:"black", 1:"white", 2:"green", 4:"red", 6:"blue"}[element]
+            i= x*taille_cellule +1
+            j= y*taille_cellule +1
+            scene.create_rectangle(i,j, i+taille_cellule, j+taille_cellule, fill = couleur)
+
+    window.update_idletasks()
+    window.update()
+    time.sleep(delta_t)
+
+print("fin!")
+
+window.mainloop()
